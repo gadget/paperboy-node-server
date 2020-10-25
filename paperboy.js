@@ -42,6 +42,13 @@ function disconnect(ws) {
   }
 }
 
+/*
+ * WebSocket connection handler in a nutshell:
+ * -'heartbeat' (ping->pong to detect broken connections)
+ * -request origin validation
+ * -receives token from WebSocket client and sends it as a subscription request for the backend
+ * -if the subscription is not authorized by the backend within 5s the WebSocket connection is closed
+ */
 server.on('connection', function connection(ws, req) {
   ws.isAlive = true;
   ws.authorized = false;
@@ -91,6 +98,7 @@ server.on('close', function close() {
   clearInterval(cleanUpDeadConnectionsInterval);
 });
 
+// a kind of ACK from the backend, confirming an authorization to a channel
 authorizedSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   console.log('Successful authorization for "%s".', message.wsId);
@@ -99,11 +107,13 @@ authorizedSubscriber.on('message', function(channel, messageString) {
     ws.authorized = true;
     ws.userId = message.userId;
     ws.channel = message.channel;
+    // registering the WebSocket connection by owning user
     if (!userSockets.has(message.userId)) {
       userSockets.set(message.userId, new Set());
     }
     userSockets.get(message.userId).add(ws);
     if (message.channel != undefined) {
+      // registering the WebSocket connection by channel
       if (!channelSockets.has(message.channel)) {
         channelSockets.set(message.channel, new Set());
       }
@@ -112,9 +122,10 @@ authorizedSubscriber.on('message', function(channel, messageString) {
   }
 });
 
+// close messages are sent by the backend application logic to 'force' close WebSocket connections
 closeSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
-  console.debug('Received message to close subscription for "%s.%s".', message.userId, message.channel);
+  console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
   if (userSockets.has(message.userId)) {
     userSockets.get(message.userId).forEach((ws, idx) => {
       if (ws.channel === message.channel) {
@@ -125,6 +136,7 @@ closeSubscriber.on('message', function(channel, messageString) {
   }
 });
 
+// application messages
 messageSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   if (message.userId != undefined) {
