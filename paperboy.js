@@ -13,25 +13,36 @@ const publisher = redis.createClient(REDIS_SERVER_URL);
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
 
-var socketsPreAuth = new Map();
+var sockets = new Map();
 var userSockets = new Map();
 var channelSockets = new Map();
 
+function noop() {
+}
+
+function heartbeat() {
+  this.isAlive = true;
+}
+
 server.on('connection', function connection(ws, req) {
+  ws.isAlive = true;
   ws.authorized = false;
+  ws.id = uuid.v4();
+  ws.on('pong', heartbeat);
+
   const remoteAddress = req.socket.remoteAddress;
   const ipInHeader = req.headers['x-forwarded-for'] != undefined ? req.headers['x-forwarded-for'].split(/\s*,\s*/)[0] : '';
+  console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
   const origin = req.headers['origin'];
   if (origin != ALLOWED_ORIGIN) {
     console.error('Origin header does not match, closing client connection!');
-    ws.close();
+    ws.terminate();
+    ws.isAlive = false;
   } else {
-    console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
     ws.on('message', function incoming(message) {
       console.log('Token arrived from WebSocket client.');
-      ws.id = uuid.v4();
       const token = message;
-      socketsPreAuth.set(ws.id, ws);
+      sockets.set(ws.id, ws);
       var msg = {};
       msg.wsId = ws.id;
       msg.token = token;
@@ -41,18 +52,37 @@ server.on('connection', function connection(ws, req) {
     setTimeout(function() {
       if (!ws.authorized) {
         console.error('Subscription was not authorized whitin timeout, closing client connection!');
-        ws.close();
-        socketsPreAuth.delete(ws.id);
+        ws.terminate();
+        ws.isAlive = false;
+        sockets.delete(ws.id);
       }
     }, 5000);
   }
 });
 
+const cleanUpDeadConnectionsInterval = setInterval(function ping() {
+  for (let ws of sockets.values()) {
+    if (ws.isAlive === false) {
+      console.debug('Cleaning up dead connection "%s".', ws.id);
+      ws.terminate();
+      sockets.delete(ws.id);
+      // TODO: cleanup maps
+    } else {
+      ws.isAlive = false;
+      ws.ping(noop);
+    }
+  }
+}, 10000);
+
+server.on('close', function close() {
+  clearInterval(cleanUpDeadConnectionsInterval);
+});
+
 authorizedSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   console.log('Successful authorization for "%s".', message.wsId);
-  if (socketsPreAuth.has(message.wsId)) {
-    const ws = socketsPreAuth.get(message.wsId);
+  if (sockets.has(message.wsId)) {
+    const ws = sockets.get(message.wsId);
     ws.authorized = true;
     userSockets.set(message.userId, ws);
     if (message.channel != undefined) {
@@ -62,7 +92,6 @@ authorizedSubscriber.on('message', function(channel, messageString) {
       channelSockets.get(message.channel).push(ws);
       // TODO: remove dead ws sockets from maps
     }
-    socketsPreAuth.delete(message.wsId);
   }
 });
 
