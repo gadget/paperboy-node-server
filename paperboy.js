@@ -67,7 +67,9 @@ const cleanUpDeadConnectionsInterval = setInterval(function ping() {
       ws.terminate();
       sockets.delete(ws.id);
       if (ws.userId != undefined) {
-        userSockets.delete(ws.userId);
+        if (userSockets.has(ws.userId)) {
+          userSockets.get(ws.userId).delete(ws);
+        }
       }
       if (ws.channel != undefined) {
         if (channelSockets.has(ws.channel)) {
@@ -93,7 +95,10 @@ authorizedSubscriber.on('message', function(channel, messageString) {
     ws.authorized = true;
     ws.userId = message.userId;
     ws.channel = message.channel;
-    userSockets.set(message.userId, ws);
+    if (!userSockets.has(message.userId)) {
+      userSockets.set(message.userId, new Set());
+    }
+    userSockets.get(message.userId).add(ws);
     if (message.channel != undefined) {
       if (!channelSockets.has(message.channel)) {
         channelSockets.set(message.channel, new Set());
@@ -116,7 +121,9 @@ messageSubscriber.on('message', function(channel, messageString) {
 
 function sendToUser(userId, message) {
   if (userSockets.has(userId)) {
-    userSockets.get(userId).send(JSON.stringify(message));
+    for (let ws of userSockets.get(userId)) {
+      ws.send(JSON.stringify(message));
+    }
   }
 }
 
