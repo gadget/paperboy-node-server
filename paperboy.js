@@ -48,6 +48,7 @@ function disconnect(ws) {
  * -request origin validation
  * -receives token from WebSocket client and sends it as a subscription request for the backend
  * -if the subscription is not authorized by the backend within 5s the WebSocket connection is closed
+ *  (application messages are not delivered until a successful authorization, not even in that 5s!)
  */
 server.on('connection', function connection(ws, req) {
   ws.isAlive = true;
