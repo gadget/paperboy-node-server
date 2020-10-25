@@ -4,6 +4,7 @@ var uuid = require('node-uuid');
 
 const REDIS_SERVER_URL = process.env.PAPERBOY_REDIS_SERVER_URL || 'redis://localhost:6379';
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
+const ALLOWED_ORIGIN = process.env.PAPERBOY_ALLOWED_ORIGIN || "http://localhost:8080";
 
 const authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
 const messageSubscriber = redis.createClient(REDIS_SERVER_URL);
@@ -19,21 +20,25 @@ var channelSockets = new Map();
 server.on('connection', function connection(ws, req) {
   const remoteAddress = req.socket.remoteAddress;
   const ipInHeader = req.headers['x-forwarded-for'] != undefined ? req.headers['x-forwarded-for'].split(/\s*,\s*/)[0] : '';
-  console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
-  // TODO: check origin header to avoid hijacking
-  ws.on('message', function incoming(message) {
-    console.log('Token arrived from WebSocket client.');
-    ws.id = uuid.v4();
-    const token = message;
-    socketsPreAuth.set(ws.id, ws);
-    var msg = {};
-    msg.wsId = ws.id;
-    msg.token = token;
-    publisher.publish('paperboy-connection-request', JSON.stringify(msg));
-    console.log('Connection request for "%s" was sent to backend.', msg.wsId);
-    // TODO: set timeout, authorized message has to arrive whitin or otherwise disconnect the websocket
-  });
-
+  const origin = req.headers['origin'];
+  if (origin != ALLOWED_ORIGIN) {
+    console.error('Origin header does not match, closing client connection!');
+    ws.close();
+  } else {
+    console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
+    ws.on('message', function incoming(message) {
+      console.log('Token arrived from WebSocket client.');
+      ws.id = uuid.v4();
+      const token = message;
+      socketsPreAuth.set(ws.id, ws);
+      var msg = {};
+      msg.wsId = ws.id;
+      msg.token = token;
+      publisher.publish('paperboy-connection-request', JSON.stringify(msg));
+      console.log('Connection request for "%s" was sent to backend.', msg.wsId);
+      // TODO: set timeout, authorized message has to arrive whitin or otherwise disconnect the websocket
+    });
+  }
 });
 
 authorizedSubscriber.on('message', function(channel, messageString) {
