@@ -34,9 +34,15 @@ server.on('connection', function connection(ws, req) {
       var msg = {};
       msg.wsId = ws.id;
       msg.token = token;
+      ws.authorized = false;
       publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
       console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
-      // TODO: set timeout, authorized message has to arrive whitin or otherwise disconnect the websocket
+      setTimeout(function() {
+        if (!ws.authorized) {
+          console.error('Subscription was not authorized whitin timeout, closing client connection!');
+          ws.close();
+        }
+      }, 5000);
     });
   }
 });
@@ -46,6 +52,7 @@ authorizedSubscriber.on('message', function(channel, messageString) {
   console.log('Successful authorization for "%s".', message.wsId);
   if (socketsPreAuth.has(message.wsId)) {
     const ws = socketsPreAuth.get(message.wsId);
+    ws.authorized = true;
     userSockets.set(message.userId, ws);
     if (message.channel != undefined) {
       if (!channelSockets.has(message.channel)) {
