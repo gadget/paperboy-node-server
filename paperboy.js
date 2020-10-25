@@ -61,8 +61,10 @@ authorizedSubscriber.on('message', function(channel, messageString) {
 messageSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   if (message.userId != undefined) {
+    console.debug('Received user message, forwarding to WebSocket.');
     sendToUser(message.userId, message);
   } else if (message.channel != undefined) {
+    console.debug('Received channel message, forwarding to WebSockets.');
     sendToChannel(message.channel, message);
   }
 });
