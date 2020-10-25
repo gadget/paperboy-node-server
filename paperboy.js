@@ -14,9 +14,9 @@ const publisher = redis.createClient(REDIS_SERVER_URL);
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
 
-var sockets = new Map();
-var userSockets = new Map();
-var channelSockets = new Map();
+var sockets = new Map();        // map of (uuid    -> WebSocket object)
+var userSockets = new Map();    // map of (userId  -> set of WebSocket objects)
+var channelSockets = new Map(); // map of (channel -> set of WebSocket objects)
 
 function noop() {
 }
@@ -25,6 +25,7 @@ function heartbeat() {
   this.isAlive = true;
 }
 
+// closes the given WebSocket connection and maintains internal states used for tracking connections
 function disconnect(ws) {
   ws.terminate();
   ws.isAlive = false;
