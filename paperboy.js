@@ -7,6 +7,7 @@ const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
 const ALLOWED_ORIGIN = process.env.PAPERBOY_ALLOWED_ORIGIN || "http://localhost:8080";
 
 const authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
+const closeSubscriber = redis.createClient(REDIS_SERVER_URL);
 const messageSubscriber = redis.createClient(REDIS_SERVER_URL);
 const publisher = redis.createClient(REDIS_SERVER_URL);
 
@@ -24,6 +25,22 @@ function heartbeat() {
   this.isAlive = true;
 }
 
+function disconnect(ws) {
+  ws.terminate();
+  ws.isAlive = false;
+  sockets.delete(ws.id);
+  if (ws.userId != undefined) {
+    if (userSockets.has(ws.userId)) {
+      userSockets.get(ws.userId).delete(ws);
+    }
+  }
+  if (ws.channel != undefined) {
+    if (channelSockets.has(ws.channel)) {
+      channelSockets.get(ws.channel).delete(ws);
+    }
+  }
+}
+
 server.on('connection', function connection(ws, req) {
   ws.isAlive = true;
   ws.authorized = false;
@@ -36,8 +53,7 @@ server.on('connection', function connection(ws, req) {
   const origin = req.headers['origin'];
   if (origin != ALLOWED_ORIGIN) {
     console.error('Origin header does not match, closing client connection!');
-    ws.terminate();
-    ws.isAlive = false;
+    disconnect(ws);
   } else {
     ws.on('message', function incoming(message) {
       console.log('Token arrived from WebSocket client.');
@@ -53,9 +69,7 @@ server.on('connection', function connection(ws, req) {
   setTimeout(function() {
     if (!ws.authorized) {
       console.error('Subscription for "%s" was not authorized whitin timeout, closing client connection!', ws.id);
-      ws.terminate();
-      ws.isAlive = false;
-      sockets.delete(ws.id);
+      disconnect(ws);
     }
   }, 5000);
 });
@@ -64,18 +78,7 @@ const cleanUpDeadConnectionsInterval = setInterval(function ping() {
   for (let ws of sockets.values()) {
     if (ws.isAlive === false) {
       console.debug('Cleaning up dead connection "%s".', ws.id);
-      ws.terminate();
-      sockets.delete(ws.id);
-      if (ws.userId != undefined) {
-        if (userSockets.has(ws.userId)) {
-          userSockets.get(ws.userId).delete(ws);
-        }
-      }
-      if (ws.channel != undefined) {
-        if (channelSockets.has(ws.channel)) {
-          channelSockets.get(ws.channel).delete(ws);
-        }
-      }
+      disconnect(ws);
     } else {
       ws.isAlive = false;
       ws.ping(noop);
@@ -108,6 +111,19 @@ authorizedSubscriber.on('message', function(channel, messageString) {
   }
 });
 
+closeSubscriber.on('message', function(channel, messageString) {
+  const message = JSON.parse(messageString);
+  console.debug('Received message to close subscription for "%s.%s".', message.userId, message.channel);
+  if (userSockets.has(message.userId)) {
+    userSockets.get(message.userId).forEach((ws, idx) => {
+      if (ws.channel === message.channel) {
+        disconnect(ws);
+        console.log('Subscription "%s" closed.', ws.id);
+      }
+    });
+  }
+});
+
 messageSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   if (message.userId != undefined) {
@@ -136,6 +152,7 @@ function sendToChannel(channel, message) {
 }
 
 authorizedSubscriber.subscribe('paperboy-subscription-authorized');
+closeSubscriber.subscribe('paperboy-subscription-close');
 messageSubscriber.subscribe('paperboy-message');
 
 console.log('Paperboy WebSocket server started on port "%d".', WEB_SOCKET_PORT);
