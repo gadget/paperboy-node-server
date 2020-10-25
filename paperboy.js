@@ -18,6 +18,7 @@ var userSockets = new Map();
 var channelSockets = new Map();
 
 server.on('connection', function connection(ws, req) {
+  ws.authorized = false;
   const remoteAddress = req.socket.remoteAddress;
   const ipInHeader = req.headers['x-forwarded-for'] != undefined ? req.headers['x-forwarded-for'].split(/\s*,\s*/)[0] : '';
   const origin = req.headers['origin'];
@@ -34,16 +35,16 @@ server.on('connection', function connection(ws, req) {
       var msg = {};
       msg.wsId = ws.id;
       msg.token = token;
-      ws.authorized = false;
       publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
       console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
-      setTimeout(function() {
-        if (!ws.authorized) {
-          console.error('Subscription was not authorized whitin timeout, closing client connection!');
-          ws.close();
-        }
-      }, 5000);
     });
+    setTimeout(function() {
+      if (!ws.authorized) {
+        console.error('Subscription was not authorized whitin timeout, closing client connection!');
+        ws.close();
+        socketsPreAuth.delete(ws.id);
+      }
+    }, 5000);
   }
 });
 
