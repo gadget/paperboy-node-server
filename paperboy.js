@@ -34,8 +34,8 @@ server.on('connection', function connection(ws, req) {
       var msg = {};
       msg.wsId = ws.id;
       msg.token = token;
-      publisher.publish('paperboy-connection-request', JSON.stringify(msg));
-      console.log('Connection request for "%s" was sent to backend.', msg.wsId);
+      publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
+      console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
       // TODO: set timeout, authorized message has to arrive whitin or otherwise disconnect the websocket
     });
   }
@@ -83,7 +83,7 @@ function sendToChannel(channel, message) {
   }
 }
 
-authorizedSubscriber.subscribe('paperboy-connection-authorized');
+authorizedSubscriber.subscribe('paperboy-subscription-authorized');
 messageSubscriber.subscribe('paperboy-message');
 
 console.log('Paperboy WebSocket server started on port "%d".', WEB_SOCKET_PORT);
