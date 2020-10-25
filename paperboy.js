@@ -49,15 +49,15 @@ server.on('connection', function connection(ws, req) {
       publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
       console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
     });
-    setTimeout(function() {
-      if (!ws.authorized) {
-        console.error('Subscription was not authorized whitin timeout, closing client connection!');
-        ws.terminate();
-        ws.isAlive = false;
-        sockets.delete(ws.id);
-      }
-    }, 5000);
   }
+  setTimeout(function() {
+    if (!ws.authorized) {
+      console.error('Subscription for "%s" was not authorized whitin timeout, closing client connection!', ws.id);
+      ws.terminate();
+      ws.isAlive = false;
+      sockets.delete(ws.id);
+    }
+  }, 5000);
 });
 
 const cleanUpDeadConnectionsInterval = setInterval(function ping() {
