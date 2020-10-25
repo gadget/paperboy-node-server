@@ -66,7 +66,14 @@ const cleanUpDeadConnectionsInterval = setInterval(function ping() {
       console.debug('Cleaning up dead connection "%s".', ws.id);
       ws.terminate();
       sockets.delete(ws.id);
-      // TODO: cleanup maps
+      if (ws.userId != undefined) {
+        userSockets.delete(ws.userId);
+      }
+      if (ws.channel != undefined) {
+        if (channelSockets.has(ws.channel)) {
+          channelSockets.get(ws.channel).delete(ws);
+        }
+      }
     } else {
       ws.isAlive = false;
       ws.ping(noop);
@@ -84,13 +91,14 @@ authorizedSubscriber.on('message', function(channel, messageString) {
   if (sockets.has(message.wsId)) {
     const ws = sockets.get(message.wsId);
     ws.authorized = true;
+    ws.userId = message.userId;
+    ws.channel = message.channel;
     userSockets.set(message.userId, ws);
     if (message.channel != undefined) {
       if (!channelSockets.has(message.channel)) {
-        channelSockets.set(message.channel, []);
+        channelSockets.set(message.channel, new Set());
       }
-      channelSockets.get(message.channel).push(ws);
-      // TODO: remove dead ws sockets from maps
+      channelSockets.get(message.channel).add(ws);
     }
   }
 });
@@ -114,9 +122,9 @@ function sendToUser(userId, message) {
 
 function sendToChannel(channel, message) {
   if (channelSockets.has(channel)) {
-    channelSockets.get(channel).forEach(function (ws, index) {
+    for (let ws of channelSockets.get(channel)) {
       ws.send(JSON.stringify(message));
-    });
+    }
   }
 }
 
