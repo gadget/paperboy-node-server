@@ -68,14 +68,12 @@ messageSubscriber.on('message', function(channel, messageString) {
 });
 
 function sendToUser(userId, message) {
-  // TODO: sanitize payload
   if (userSockets.has(userId)) {
     userSockets.get(userId).send(JSON.stringify(message));
   }
 }
 
 function sendToChannel(channel, message) {
-  // TODO: sanitize payload
   if (channelSockets.has(channel)) {
     channelSockets.get(channel).forEach(function (ws, index) {
       ws.send(JSON.stringify(message));
