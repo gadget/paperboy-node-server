@@ -2,13 +2,12 @@ var WebSocket = require('ws');
 var redis = require('redis');
 var uuid = require('node-uuid');
 
-// Configuration: adapt to your environment
-const REDIS_SERVER = "redis://localhost:6379";
-const WEB_SOCKET_PORT = 3000;
+const REDIS_SERVER_URL = process.env.PAPERBOY_REDIS_SERVER_URL || 'redis://localhost:6379';
+const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
 
-const authorizedSubscriber = redis.createClient(REDIS_SERVER);
-const messageSubscriber = redis.createClient(REDIS_SERVER);
-const publisher = redis.createClient(REDIS_SERVER);
+const authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
+const messageSubscriber = redis.createClient(REDIS_SERVER_URL);
+const publisher = redis.createClient(REDIS_SERVER_URL);
 
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
@@ -17,36 +16,31 @@ var socketsPreAuth = new Map();
 var userSockets = new Map();
 var channelSockets = new Map();
 
-// Register event for client connection
 server.on('connection', function connection(ws, req) {
-  console.log('client ws connection opened');
+  const remoteAddress = req.socket.remoteAddress;
+  const ipInHeader = req.headers['x-forwarded-for'] != undefined ? req.headers['x-forwarded-for'].split(/\s*,\s*/)[0] : '';
+  console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
   // TODO: check origin header to avoid hijacking
   ws.on('message', function incoming(message) {
-    console.log('incoming ws message');
-    console.log('ws.id:' + ws.id); // TODO: make sure ws has no id field yet
+    console.log('Token arrived from WebSocket client.');
     ws.id = uuid.v4();
     const token = message;
-    const ip = req.socket.remoteAddress;
-    //const ip = req.headers['x-forwarded-for'].split(/\s*,\s*/)[0];
     socketsPreAuth.set(ws.id, ws);
     var msg = {};
     msg.wsId = ws.id;
     msg.token = token;
-    publisher.publish('paperboy-connection-request', JSON.stringify(msg)); // TODO: json
-    console.log('connection request was sent to backend');
-    console.log('token:' + token);
+    publisher.publish('paperboy-connection-request', JSON.stringify(msg));
+    console.log('Connection request for "%s" was sent to backend.', msg.wsId);
     // TODO: set timeout, authorized message has to arrive whitin or otherwise disconnect the websocket
   });
 
 });
 
 authorizedSubscriber.on('message', function(channel, messageString) {
-  console.log('incoming auth msg from redis');
-  console.log(messageString);
   const message = JSON.parse(messageString);
-  const ws = socketsPreAuth.get(message.wsId);
-  if (ws != undefined) {
-    // TODO: ws is null if request was handled on another node, ignore
+  console.log('Successful authorization for "%s".', message.wsId);
+  if (socketsPreAuth.has(message.wsId)) {
+    const ws = socketsPreAuth.get(message.wsId);
     userSockets.set(message.userId, ws);
     if (message.channel != undefined) {
       if (!channelSockets.has(message.channel)) {
@@ -60,14 +54,10 @@ authorizedSubscriber.on('message', function(channel, messageString) {
 });
 
 messageSubscriber.on('message', function(channel, messageString) {
-  console.log('incoming msg from redis');
-  console.log(messageString);
   const message = JSON.parse(messageString);
   if (message.userId != undefined) {
-    console.log('sending to user ' + message.userId);
     sendToUser(message.userId, message);
   } else if (message.channel != undefined) {
-    console.log('sending to channel ' + message.channel);
     sendToChannel(message.channel, message);
   }
 });
@@ -91,4 +81,4 @@ function sendToChannel(channel, message) {
 authorizedSubscriber.subscribe('paperboy-connection-authorized');
 messageSubscriber.subscribe('paperboy-message');
 
-console.log("Paperboy WebSocket server started at ws://locahost:"+ WEB_SOCKET_PORT);
+console.log('Paperboy WebSocket server started on port "%d".', WEB_SOCKET_PORT);
