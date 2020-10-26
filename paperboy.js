@@ -97,7 +97,7 @@ server.on('close', function close() {
   clearInterval(cleanUpDeadConnectionsInterval);
 });
 
-// a kind of ACK from the backend, confirming an authorization to a channel
+// a kind of ACK from the backend, confirming an authorization/subscription to a channel
 authorizedSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   console.log('Successful authorization for "%s".', message.wsId);
@@ -118,6 +118,7 @@ authorizedSubscriber.on('message', function(channel, messageString) {
       }
       channelSockets.get(message.channel).add(ws);
     }
+    ws.send('subscribed');
   }
 });
 
