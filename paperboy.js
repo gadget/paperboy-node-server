@@ -42,28 +42,24 @@ function disconnect(ws) {
   }
 }
 
-/*
- * WebSocket connection handler in a nutshell:
- * -'heartbeat' (ping->pong to detect broken connections)
- * -request origin validation
- * -receives token from WebSocket client and sends it as a subscription request for the backend
- * -if the subscription is not authorized by the backend within 5s the WebSocket connection is closed
- *  (application messages are not delivered until a successful authorization, not even in that 5s!)
- */
+// WebSocket connection handler
 server.on('connection', function connection(ws, req) {
   ws.isAlive = true;
   ws.authorized = false;
   ws.id = uuid.v4();
+  // 'heartbeat' (ping->pong to detect broken connections)
   ws.on('pong', heartbeat);
 
   const remoteAddress = req.socket.remoteAddress;
   const ipInHeader = req.headers['x-forwarded-for'] != undefined ? req.headers['x-forwarded-for'].split(/\s*,\s*/)[0] : '';
   console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
   const origin = req.headers['origin'];
+  // request origin validation
   if (origin != ALLOWED_ORIGIN) {
     console.error('Origin header does not match, closing client connection!');
     disconnect(ws);
   } else {
+    // receives token from WebSocket client and sends it as a subscription request for the backend
     ws.on('message', function incoming(message) {
       console.log('Token arrived from WebSocket client.');
       const token = message;
@@ -76,6 +72,8 @@ server.on('connection', function connection(ws, req) {
     });
   }
   setTimeout(function() {
+    // if the subscription is not authorized by the backend within 5s the WebSocket connection is closed
+    // (application messages are not delivered until a successful authorization, not even in that 5s!)
     if (!ws.authorized) {
       console.error('Subscription for "%s" was not authorized whitin timeout, closing client connection!', ws.id);
       disconnect(ws);
