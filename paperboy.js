@@ -151,7 +151,9 @@ messageSubscriber.on('message', function(channel, messageString) {
 function sendToUser(userId, message) {
   if (userSockets.has(userId)) {
     for (let ws of userSockets.get(userId)) {
-      ws.send(JSON.stringify(message));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
     }
   }
 }
@@ -159,7 +161,9 @@ function sendToUser(userId, message) {
 function sendToChannel(channel, message) {
   if (channelSockets.has(channel)) {
     for (let ws of channelSockets.get(channel)) {
-      ws.send(JSON.stringify(message));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      }
     }
   }
 }
