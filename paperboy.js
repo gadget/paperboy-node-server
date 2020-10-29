@@ -4,7 +4,7 @@ var uuid = require('node-uuid');
 
 const REDIS_SERVER_URL = process.env.PAPERBOY_REDIS_SERVER_URL || 'redis://localhost:6379';
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
-const ALLOWED_ORIGIN = process.env.PAPERBOY_ALLOWED_ORIGIN || "http://localhost:8080";
+const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || "http://localhost:8080";
 
 const authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
 const closeSubscriber = redis.createClient(REDIS_SERVER_URL);
@@ -55,7 +55,7 @@ server.on('connection', function connection(ws, req) {
   console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
   const origin = req.headers['origin'];
   // request origin validation
-  if (origin != ALLOWED_ORIGIN) {
+  if (!ALLOWED_ORIGINS.includes(origin)) {
     console.error('Origin header does not match, closing client connection!');
     disconnect(ws);
   } else {
