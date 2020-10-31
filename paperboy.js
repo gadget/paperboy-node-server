@@ -35,9 +35,11 @@ function disconnect(ws) {
       userSockets.get(ws.userId).delete(ws);
     }
   }
-  if (ws.channel != undefined) {
-    if (channelSockets.has(ws.channel)) {
-      channelSockets.get(ws.channel).delete(ws);
+  if (ws.channels != undefined) {
+    for (let ch of ws.channels) {
+      if (channelSockets.has(ch)) {
+        channelSockets.get(ch).delete(ws);
+      }
     }
   }
 }
@@ -105,33 +107,40 @@ authorizedSubscriber.on('message', function(channel, messageString) {
     const ws = sockets.get(message.wsId);
     ws.authorized = true;
     ws.userId = message.userId;
-    ws.channel = message.channel;
     // registering the WebSocket connection by owning user
     if (!userSockets.has(message.userId)) {
       userSockets.set(message.userId, new Set());
     }
     userSockets.get(message.userId).add(ws);
     if (message.channel != undefined) {
+      // registering channel subscription for the WebSocket connection
+      if (ws.channels === undefined) {
+        ws.channels = new Set();
+      }
+      ws.channels.add(message.channel);
       // registering the WebSocket connection by channel
       if (!channelSockets.has(message.channel)) {
         channelSockets.set(message.channel, new Set());
       }
       channelSockets.get(message.channel).add(ws);
+      ws.send('subscribed:' + message.channel);
     }
-    ws.send('subscribed');
   }
 });
 
-// close messages are sent by the backend application logic to 'force' close WebSocket connections
+// close messages are sent by the backend application logic to 'force' close channel subscription
 closeSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
   if (userSockets.has(message.userId)) {
     userSockets.get(message.userId).forEach((ws, idx) => {
-      if (ws.channel === message.channel) {
-        disconnect(ws);
-        console.log('Subscription "%s" closed.', ws.id);
+      if (ws.channels != undefined && ws.channels.has(message.channel)) {
+        ws.channels.delete(message.channel);
       }
+      if (channelSockets.has(message.channel)) {
+        channelSockets.get(message.channel).delete(ws);
+      }
+      console.log('Subscription "%s" closed.', ws.id);
     });
   }
 });
