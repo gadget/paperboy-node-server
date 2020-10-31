@@ -44,6 +44,20 @@ function disconnect(ws) {
   }
 }
 
+function clearSubscription(userId, channel) {
+  if (userSockets.has(userId)) {
+    userSockets.get(userId).forEach((ws, idx) => {
+      if (ws.channels != undefined && ws.channels.has(channel)) {
+        ws.channels.delete(channel);
+      }
+      if (channelSockets.has(channel)) {
+        channelSockets.get(channel).delete(ws);
+      }
+      console.log('Subscription "%s" closed.', ws.id);
+    });
+  }
+}
+
 // WebSocket connection handler
 server.on('connection', function connection(ws, req) {
   ws.isAlive = true;
@@ -63,14 +77,20 @@ server.on('connection', function connection(ws, req) {
   } else {
     // receives token from WebSocket client and sends it as a subscription request for the backend
     ws.on('message', function incoming(message) {
-      console.log('Token arrived from WebSocket client.');
-      const token = message;
-      sockets.set(ws.id, ws);
-      var msg = {};
-      msg.wsId = ws.id;
-      msg.token = token;
-      publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
-      console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
+      if (message.length < 100 && message.startsWith('unsubscribe:')) {
+        console.log('Unsubscribe request from WebSocket client.');
+        const ch = message.substring(12);
+        clearSubscription(ws.userId, ch);
+      } else {
+        console.log('Token arrived from WebSocket client.');
+        const token = message;
+        sockets.set(ws.id, ws);
+        var msg = {};
+        msg.wsId = ws.id;
+        msg.token = token;
+        publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
+        console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
+      }
     });
   }
   setTimeout(function() {
@@ -132,17 +152,7 @@ authorizedSubscriber.on('message', function(channel, messageString) {
 closeSubscriber.on('message', function(channel, messageString) {
   const message = JSON.parse(messageString);
   console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
-  if (userSockets.has(message.userId)) {
-    userSockets.get(message.userId).forEach((ws, idx) => {
-      if (ws.channels != undefined && ws.channels.has(message.channel)) {
-        ws.channels.delete(message.channel);
-      }
-      if (channelSockets.has(message.channel)) {
-        channelSockets.get(message.channel).delete(ws);
-      }
-      console.log('Subscription "%s" closed.', ws.id);
-    });
-  }
+  clearSubscription(message.userId, message.channel);
 });
 
 // application messages
