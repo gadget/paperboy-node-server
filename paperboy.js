@@ -7,8 +7,8 @@ const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || "http://localhos
 
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
-const redisBackend = new redis.RedisBackend();
-redisBackend.init();
+const messagingBackend = new redis.RedisBackend();
+messagingBackend.init();
 
 var sockets = new Map();        // map of (uuid    -> WebSocket object)
 var userSockets = new Map();    // map of (userId  -> set of WebSocket objects)
@@ -81,13 +81,13 @@ server.on('connection', function connection(ws, req) {
         console.log('Token arrived from WebSocket client.');
         const token = message;
         sockets.set(ws.id, ws);
-        redisBackend.publishSubscriptionRequest(ws.id, token);
+        messagingBackend.publishSubscriptionRequest(ws.id, token);
         console.log('Subscription request for "%s" was sent to backend.', ws.id);
       }
     });
   }
   setTimeout(function() {
-    // if the subscription is not authorized by the backend within 5s the WebSocket connection is closed
+    // if a subscription is not authorized by the backend within 5s the WebSocket connection is closed
     // (application messages are not delivered until a successful authorization, not even in that 5s!)
     if (!ws.authorized) {
       console.error('Subscription for "%s" was not authorized whitin timeout, closing client connection!', ws.id);
@@ -113,7 +113,8 @@ server.on('close', function close() {
 });
 
 // a kind of ACK from the backend, confirming an authorization/subscription to a channel
-redisBackend.subscribeAuthorized(function(messageString) {
+messagingBackend.subscribeAuthorized(function(messageString) {
+  // TODO: sub-request should be a queue, backend is subscribed but auth responses will be duplicated if all the backend nodes processes every request
   const message = JSON.parse(messageString);
   console.log('Successful authorization for "%s".', message.wsId);
   if (sockets.has(message.wsId)) {
@@ -142,14 +143,14 @@ redisBackend.subscribeAuthorized(function(messageString) {
 });
 
 // close messages are sent by the backend application logic to 'force' close channel subscription
-redisBackend.subscribeClose(function(messageString) {
+messagingBackend.subscribeClose(function(messageString) {
   const message = JSON.parse(messageString);
   console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
   clearSubscription(message.userId, message.channel);
 });
 
 // application messages
-redisBackend.subscribeMessage(function(messageString) {
+messagingBackend.subscribeMessage(function(messageString) {
   try {
     const message = JSON.parse(messageString);
     if (message.userId != undefined) {
