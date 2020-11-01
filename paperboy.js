@@ -1,18 +1,14 @@
 var WebSocket = require('ws');
-var redis = require('redis');
 var uuid = require('node-uuid');
+var redis = require('./redis-backend')
 
-const REDIS_SERVER_URL = process.env.PAPERBOY_REDIS_SERVER_URL || 'redis://localhost:6379';
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
 const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || "http://localhost:8080";
 
-const authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
-const closeSubscriber = redis.createClient(REDIS_SERVER_URL);
-const messageSubscriber = redis.createClient(REDIS_SERVER_URL);
-const publisher = redis.createClient(REDIS_SERVER_URL);
-
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
+const redisBackend = new redis.RedisBackend();
+redisBackend.init();
 
 var sockets = new Map();        // map of (uuid    -> WebSocket object)
 var userSockets = new Map();    // map of (userId  -> set of WebSocket objects)
@@ -85,11 +81,8 @@ server.on('connection', function connection(ws, req) {
         console.log('Token arrived from WebSocket client.');
         const token = message;
         sockets.set(ws.id, ws);
-        var msg = {};
-        msg.wsId = ws.id;
-        msg.token = token;
-        publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
-        console.log('Subscription request for "%s" was sent to backend.', msg.wsId);
+        redisBackend.publishSubscriptionRequest(ws.id, token);
+        console.log('Subscription request for "%s" was sent to backend.', ws.id);
       }
     });
   }
@@ -120,7 +113,7 @@ server.on('close', function close() {
 });
 
 // a kind of ACK from the backend, confirming an authorization/subscription to a channel
-authorizedSubscriber.on('message', function(channel, messageString) {
+redisBackend.subscribeAuthorized(function(messageString) {
   const message = JSON.parse(messageString);
   console.log('Successful authorization for "%s".', message.wsId);
   if (sockets.has(message.wsId)) {
@@ -149,14 +142,14 @@ authorizedSubscriber.on('message', function(channel, messageString) {
 });
 
 // close messages are sent by the backend application logic to 'force' close channel subscription
-closeSubscriber.on('message', function(channel, messageString) {
+redisBackend.subscribeClose(function(messageString) {
   const message = JSON.parse(messageString);
   console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
   clearSubscription(message.userId, message.channel);
 });
 
 // application messages
-messageSubscriber.on('message', function(channel, messageString) {
+redisBackend.subscribeMessage(function(messageString) {
   try {
     const message = JSON.parse(messageString);
     if (message.userId != undefined) {
@@ -190,9 +183,5 @@ function sendToChannel(channel, message) {
     }
   }
 }
-
-authorizedSubscriber.subscribe('paperboy-subscription-authorized');
-closeSubscriber.subscribe('paperboy-subscription-close');
-messageSubscriber.subscribe('paperboy-message');
 
 console.log('Paperboy WebSocket server started on port "%d".', WEB_SOCKET_PORT);
