@@ -71,7 +71,7 @@ server.on('connection', function connection(ws, req) {
   console.log('WebSocket connection opened by client (remoteAddress: "%s", ipInHeader: "%s").', remoteAddress, ipInHeader);
   const origin = req.headers['origin'];
   // request origin validation
-  if (!ALLOWED_ORIGINS.includes(origin)) {
+  if (ALLOWED_ORIGINS != '*' && !ALLOWED_ORIGINS.includes(origin)) {
     console.error('Origin header does not match, closing client connection!');
     disconnect(ws);
   } else {
