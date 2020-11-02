@@ -17,7 +17,7 @@ class RedisBackend {
     var msg = {};
     msg.wsId = wsId;
     msg.token = token;
-    this.publisher.publish('paperboy-subscription-request', JSON.stringify(msg));
+    this.publisher.rpush('paperboy-subscription-request', JSON.stringify(msg));
   }
 
   subscribeAuthorized(callback) {
