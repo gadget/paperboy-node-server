@@ -1,4 +1,4 @@
-const RABBIT_SERVER_URL = process.env.PAPERBOY_RABBIT_SERVER_URL || 'amqp://localhost';
+const RABBIT_SERVER_URL = process.env.PAPERBOY_RABBIT_SERVER_URL || 'amqp://localhost:5672';
 var amqp = require('amqplib/callback_api');
 
 class RabbitBackend {
@@ -6,23 +6,15 @@ class RabbitBackend {
   constructor() {
   }
 
-  init() {
+  init(callback) {
     const that = this;
     amqp.connect(RABBIT_SERVER_URL, function(error0, connection) {
-      if (error0) {
-        throw error0;
-      }
+      if (error0) throw error0;
       connection.createChannel(function(error1, channel) {
-        if (error1) {
-          throw error1;
-        }
-        channel.assertExchange('paperboy-subscription-request', 'fanout', { durable: false });
-        channel.assertQueue('', { exclusive: true }, function(error2, q) {
-          if (error2) {
-            throw error2;
-          }
-        });
+        if (error1) throw error1;
+        channel.assertQueue('paperboy-subscription-request');
         that.channel = channel;
+        callback();
       });
     });
   }
@@ -31,21 +23,17 @@ class RabbitBackend {
     var msg = {};
     msg.wsId = wsId;
     msg.token = token;
-    this.channel.publish('paperboy-subscription-request', '', Buffer.from(JSON.stringify(msg)));
+    this.channel.sendToQueue('paperboy-subscription-request', Buffer.from(JSON.stringify(msg)));
   }
 
   _subscribe(topic, callback) {
     const that = this;
     this.channel.assertExchange(topic, 'fanout', { durable: false });
-    this.channel.assertQueue('', { exclusive: true }, function(error2, q) {
-      if (error2) {
-        throw error2;
-      }
-      console.log("Waiting for messages in %s.", q.queue);
+    this.channel.assertQueue('', { exclusive: true }, function(error, q) {
+      if (error) throw error;
       that.channel.bindQueue(q.queue, topic, '');
-      channel.consume(q.queue, function(msg) {
+      that.channel.consume(q.queue, function(msg) {
         if (msg.content) {
-          console.log("msg: %s", msg.content.toString());
           callback(msg.content.toString());
         }
       }, {
@@ -55,15 +43,15 @@ class RabbitBackend {
   }
 
   subscribeAuthorized(callback) {
-    _subscribe('paperboy-subscription-authorized', callback);
+    this._subscribe('paperboy-subscription-authorized', callback);
   }
 
   subscribeClose(callback) {
-    _subscribe('paperboy-subscription-close', callback);
+    this._subscribe('paperboy-subscription-close', callback);
   }
 
   subscribeMessage(callback) {
-    _subscribe('paperboy-message', callback);
+    this._subscribe('paperboy-message', callback);
   }
 
 }

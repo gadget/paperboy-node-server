@@ -6,11 +6,12 @@ class RedisBackend {
   constructor() {
   }
 
-  init() {
+  init(callback) {
     this.authorizedSubscriber = redis.createClient(REDIS_SERVER_URL);
     this.closeSubscriber = redis.createClient(REDIS_SERVER_URL);
     this.messageSubscriber = redis.createClient(REDIS_SERVER_URL);
     this.publisher = redis.createClient(REDIS_SERVER_URL);
+    callback();
   }
 
   publishSubscriptionRequest(wsId, token) {
