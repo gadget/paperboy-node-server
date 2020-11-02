@@ -1,16 +1,27 @@
 var WebSocket = require('ws');
 var uuid = require('node-uuid');
-//var redis = require('./redis-backend')
-var rabbit = require('./rabbit-backend')
 
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
-const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || "http://localhost:8080";
+const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || 'http://localhost:8080';
+const MESSAGING_BACKEND = process.env.PAPERBOY_MESSAGING_BACKEND || 'redis';
 
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
-//const messagingBackend = new redis.RedisBackend();
-const messagingBackend = new rabbit.RabbitBackend();
 
+function createMessagingBackend() {
+  switch (MESSAGING_BACKEND) {
+    case 'redis':
+      var redis = require('./redis-backend')
+      return new redis.RedisBackend();
+    case 'rabbit':
+      var rabbit = require('./rabbit-backend')
+      return new rabbit.RabbitBackend();
+    default:
+      throw 'Not implemented yet!';
+  }
+}
+
+const messagingBackend = createMessagingBackend();
 messagingBackend.init(function() {
   var sockets = new Map();        // map of (uuid    -> WebSocket object)
   var userSockets = new Map();    // map of (userId  -> set of WebSocket objects)
@@ -187,5 +198,5 @@ messagingBackend.init(function() {
     }
   }
 
-  console.log('Paperboy WebSocket server started on port "%d".', WEB_SOCKET_PORT);
+  console.log('Paperboy WebSocket server using "%s" backend started on port "%d".', MESSAGING_BACKEND, WEB_SOCKET_PORT);
 });
