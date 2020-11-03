@@ -168,31 +168,31 @@ messagingBackend.init(function() {
       const message = JSON.parse(messageString);
       if (message.userId != undefined) {
         console.debug('Received user message, forwarding to WebSocket.');
-        sendToUser(message.userId, message);
+        sendToUser(message.userId, messageString);
       } else if (message.channel != undefined) {
         console.debug('Received channel message, forwarding to WebSockets.');
-        sendToChannel(message.channel, message);
+        sendToChannel(message.channel, messageString);
       }
     } catch (e) {
       console.error(e);
     }
   });
 
-  function sendToUser(userId, message) {
+  function sendToUser(userId, messageString) {
     if (userSockets.has(userId)) {
       for (let ws of userSockets.get(userId)) {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
+          ws.send(messageString);
         }
       }
     }
   }
 
-  function sendToChannel(channel, message) {
+  function sendToChannel(channel, messageString) {
     if (channelSockets.has(channel)) {
       for (let ws of channelSockets.get(channel)) {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
+          ws.send(messageString);
         }
       }
     }
