@@ -127,7 +127,6 @@ messagingBackend.init(function() {
 
   // a kind of ACK from the backend, confirming an authorization/subscription to a channel
   messagingBackend.subscribeAuthorized(function(messageString) {
-    // TODO: sub-request should be a queue, backend is subscribed but auth responses will be duplicated if all the backend nodes processes every request
     const message = JSON.parse(messageString);
     console.log('Successful authorization for "%s".', message.wsId);
     if (sockets.has(message.wsId)) {
