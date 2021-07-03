@@ -20,7 +20,7 @@ class EmbeddedBackend {
     app.use(express.json());
     app.post('/subscribeTopic/:topic', function (req, res) {
       let caller = req.body;
-      console.log('EmbeddedBackend: Topic subscription received for "%s" with callback "%s:%d:%s".', req.params.topic, caller.restHostname, caller.restPort, caller.restPath);
+      console.log('EmbeddedBackend: Topic subscription received for "%s" with callback "%s:%d%s".', req.params.topic, caller.restHostname, caller.restPort, caller.restPath);
       if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
         throw 'Invalid token for embedded backend!';
       }
@@ -41,7 +41,7 @@ class EmbeddedBackend {
       if (that.topicSubscriptions.has(req.params.topic)) {
         let subscriptions = that.topicSubscriptions.get(req.params.topic);
         subscriptions.forEach((caller, i) => {
-          console.log('EmbeddedBackend: Calling subscription callback "%s:%d:%s".', caller.restHostname, caller.restPort, caller.restPath);
+          console.log('EmbeddedBackend: Calling subscription callback "%s:%d%s".', caller.restHostname, caller.restPort, caller.restPath);
           that._post(caller.restHostname, caller.restPort, caller.restPath, JSON.stringify(msg));
         });
       }
@@ -127,9 +127,9 @@ class EmbeddedBackend {
       }
     };
     var req = http.request(options, function(res) {
-      res.setEncoding('utf8');
-      res.on('data', function (chunk) {
-      });
+      if (res.statusCode != 200) {
+        console.error('EmbeddedBackend: unsuccessful service call to "%s:%d%s", response: "%d"', hostname, port, path, res.statusCode);
+      }
     });
     req.on('error', error => {
       console.error(error);
