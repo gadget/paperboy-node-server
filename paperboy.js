@@ -4,6 +4,7 @@ var uuid = require('node-uuid');
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
 const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || 'http://localhost:8080';
 const MESSAGING_BACKEND = process.env.PAPERBOY_MESSAGING_BACKEND || 'embedded';
+const EMBEDDED_BACKEND_PORT = process.env.PAPERBOY_EMBEDDED_BACKEND_PORT || '8060';
 
 // TODO: use WSS for secure/encrypted ws channels
 const server = new WebSocket.Server({ port : WEB_SOCKET_PORT });
@@ -12,7 +13,7 @@ function createMessagingBackend() {
   switch (MESSAGING_BACKEND) {
     case 'embedded':
       var embedded = require('./embedded-backend')
-      return new embedded.EmbeddedBackend();
+      return new embedded.EmbeddedBackend(EMBEDDED_BACKEND_PORT);
     case 'redis':
       var redis = require('./redis-backend')
       return new redis.RedisBackend();

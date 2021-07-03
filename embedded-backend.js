@@ -6,7 +6,8 @@ let app = express();
 
 class EmbeddedBackend {
 
-  constructor() {
+  constructor(port) {
+    this.port = port;
   }
 
   init(callback) {
@@ -50,14 +51,17 @@ class EmbeddedBackend {
       return res.send("done");
     });
 
-    http.createServer(app).listen(8060, function() {
+    http.createServer(app).listen(that.port, function() {
       console.log("EmbeddedBackend: server started.");
     });
 
-    bonjour.publish({ name: 'Paperboy embedded backend', type: 'paperboy-http', port: 8060 });
+    bonjour.publish({ name: 'Paperboy embedded backend #' + that.port, type: 'paperboy-http', port: that.port });
     bonjour.find({ type: 'paperboy-http' }, function (service) {
-      console.log('EmbeddedBackend: Discovered embedded backend at "%s".', service.addresses[0]);
-      that.nodes.push(service.addresses[0]);
+      var serviceObj = {};
+      serviceObj.host = service.addresses[0];
+      serviceObj.port = service.port;
+      console.log('EmbeddedBackend: Discovered embedded backend at "%s:%d".', serviceObj.host, serviceObj.port);
+      that.nodes.push(serviceObj);
     })
     callback();
   }
@@ -69,7 +73,7 @@ class EmbeddedBackend {
     var that = this;
 
     this.nodes.forEach(function(n) {
-      that._post(n, 8060, '/pushMessage/paperboy-subscription-request', JSON.stringify(msg));
+      that._post(n.host, n.port, '/pushMessage/paperboy-subscription-request', JSON.stringify(msg));
     });
   }
 
@@ -77,27 +81,27 @@ class EmbeddedBackend {
     this.messageCallbacks.set('paperboy-subscription-authorized', callback);
     var caller = {};
     caller.restHostname = 'localhost';
-    caller.restPort = 8060;
+    caller.restPort = this.port;
     caller.restPath = '/messageCallback/paperboy-subscription-authorized';
-    this._post('localhost', 8060, '/subscribeTopic/paperboy-subscription-authorized', JSON.stringify(caller));
+    this._post('localhost', this.port, '/subscribeTopic/paperboy-subscription-authorized', JSON.stringify(caller));
   }
 
   subscribeClose(callback) {
     this.messageCallbacks.set('paperboy-subscription-close', callback);
     var caller = {};
     caller.restHostname = 'localhost';
-    caller.restPort = 8060;
+    caller.restPort = this.port;
     caller.restPath = '/messageCallback/paperboy-subscription-close';
-    this._post('localhost', 8060, '/subscribeTopic/paperboy-subscription-close', JSON.stringify(caller));
+    this._post('localhost', this.port, '/subscribeTopic/paperboy-subscription-close', JSON.stringify(caller));
   }
 
   subscribeMessage(callback) {
     this.messageCallbacks.set('paperboy-message', callback);
     var caller = {};
     caller.restHostname = 'localhost';
-    caller.restPort = 8060;
+    caller.restPort = this.port;
     caller.restPath = '/messageCallback/paperboy-message';
-    this._post('localhost', 8060, '/subscribeTopic/paperboy-message', JSON.stringify(caller));
+    this._post('localhost', this.port, '/subscribeTopic/paperboy-message', JSON.stringify(caller));
   }
 
   _post(hostname, port, path, data) {
