@@ -25,9 +25,9 @@ class EmbeddedBackend {
         throw 'Invalid token for embedded backend!';
       }
       if (!that.topicSubscriptions.has(req.params.topic)) {
-        that.topicSubscriptions.set(req.params.topic, []);
+        that.topicSubscriptions.set(req.params.topic, new Set());
       }
-      that.topicSubscriptions.get(req.params.topic).push(caller)
+      that.topicSubscriptions.get(req.params.topic).add(caller)
       return res.send("done");
       // TODO: remove dead callers
     });
@@ -40,7 +40,7 @@ class EmbeddedBackend {
       }
       if (that.topicSubscriptions.has(req.params.topic)) {
         let subscriptions = that.topicSubscriptions.get(req.params.topic);
-        subscriptions.forEach((caller, i) => {
+        subscriptions.forEach((caller) => {
           console.log('EmbeddedBackend: Calling subscription callback "%s:%d%s".', caller.restHostname, caller.restPort, caller.restPath);
           that._post(caller.restHostname, caller.restPort, caller.restPath, JSON.stringify(msg));
         });
