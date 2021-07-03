@@ -6,8 +6,9 @@ let app = express();
 
 class EmbeddedBackend {
 
-  constructor(port) {
+  constructor(port, embeddedBackendToken) {
     this.port = port;
+    this.embeddedBackendToken = embeddedBackendToken;
   }
 
   init(callback) {
@@ -20,6 +21,9 @@ class EmbeddedBackend {
     app.post('/subscribeTopic/:topic', function (req, res) {
       let caller = req.body;
       console.log('EmbeddedBackend: Topic subscription received for "%s" with callback "%s:%d:%s".', req.params.topic, caller.restHostname, caller.restPort, caller.restPath);
+      if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
+        throw 'Invalid token for embedded backend!';
+      }
       if (!that.topicSubscriptions.has(req.params.topic)) {
         that.topicSubscriptions.set(req.params.topic, []);
       }
@@ -31,6 +35,9 @@ class EmbeddedBackend {
     app.post('/pushMessage/:topic', function (req, res) {
       let msg = req.body;
       console.log('EmbeddedBackend: Pushing message to "%s".', req.params.topic);
+      if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
+        throw 'Invalid token for embedded backend!';
+      }
       if (that.topicSubscriptions.has(req.params.topic)) {
         let subscriptions = that.topicSubscriptions.get(req.params.topic);
         subscriptions.forEach((caller, i) => {
@@ -44,6 +51,9 @@ class EmbeddedBackend {
     app.post('/messageCallback/:topic', function (req, res) {
       let msg = req.body;
       console.log('EmbeddedBackend: Message callback received for "%s".', req.params.topic);
+      if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
+        throw 'Invalid token for embedded backend!';
+      }
       if (that.messageCallbacks.has(req.params.topic)) {
         console.log('EmbeddedBackend: Executing callback handler.');
         that.messageCallbacks.get(req.params.topic)(JSON.stringify(msg));
@@ -112,7 +122,8 @@ class EmbeddedBackend {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-length': data.length
+        'Content-length': data.length,
+        'PaperboyEmbeddedBackendToken': this.embeddedBackendToken
       }
     };
     var req = http.request(options, function(res) {
