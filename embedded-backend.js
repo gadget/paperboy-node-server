@@ -25,9 +25,11 @@ class EmbeddedBackend {
         throw 'Invalid token for embedded backend!';
       }
       if (!that.topicSubscriptions.has(req.params.topic)) {
-        that.topicSubscriptions.set(req.params.topic, new Set());
+        that.topicSubscriptions.set(req.params.topic, new Map());
       }
-      that.topicSubscriptions.get(req.params.topic).add(caller)
+      let subscriptionsMap = that.topicSubscriptions.get(req.params.topic);
+      let key = caller.restHostname + ":" + caller.restPort + caller.restPath;
+      subscriptionsMap.set(key, caller);
       return res.send("done");
       // TODO: remove dead callers
     });
