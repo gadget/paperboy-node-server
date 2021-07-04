@@ -1,6 +1,7 @@
 const bonjour = require('bonjour')();
 const express = require('express');
 const http = require('http');
+const { v4: uuidv4 } = require('uuid');
 
 let app = express();
 
@@ -15,9 +16,13 @@ class EmbeddedBackend {
     this.topicSubscriptions = new Map();
     this.messageCallbacks = new Map();
     this.nodes = [];
+    this.instanceId = uuidv4();
     let that = this;
 
     app.use(express.json());
+    app.get('/instance', function (req, res) {
+      res.send(that.instanceId);
+    });
     app.post('/subscribeTopic/:topic', function (req, res) {
       let caller = req.body;
       console.log('EmbeddedBackend: Topic subscription received for "%s" with callback "%s:%d%s".', req.params.topic, caller.restHostname, caller.restPort, caller.restPath);
