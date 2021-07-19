@@ -56,6 +56,7 @@ messagingBackend.init(function() {
         }
       }
     }
+    console.log('WebSocket client disconnected "%s".', ws.id);
   }
 
   function clearSubscription(userId, channel) {
@@ -86,7 +87,7 @@ messagingBackend.init(function() {
     const origin = req.headers['origin'];
     // request origin validation
     if (ALLOWED_ORIGINS != '*' && !ALLOWED_ORIGINS.includes(origin)) {
-      console.error('Origin header does not match, closing client connection!');
+      console.error('Origin header does not match, closing client connection "%s"!', ws.id);
       disconnect(ws);
     } else {
       // receives token from WebSocket client and sends it as a subscription request for the backend
@@ -133,7 +134,6 @@ messagingBackend.init(function() {
   // a kind of ACK from the backend, confirming an authorization/subscription to a channel
   messagingBackend.subscribeAuthorized(function(messageString) {
     const message = JSON.parse(messageString);
-    console.log('Successful authorization for "%s".', message.wsId);
     if (sockets.has(message.wsId)) {
       const ws = sockets.get(message.wsId);
       ws.authorized = true;
@@ -156,6 +156,7 @@ messagingBackend.init(function() {
         channelSockets.get(message.channel).add(ws);
         ws.send('subscribed:' + message.channel);
       }
+      console.log('Successful authorization for "%s".', message.wsId);
     }
   });
 
