@@ -58,7 +58,11 @@ class EmbeddedBackend {
         // we iterate over all the subscription callers and execute the callback over REST
         subscriptions.forEach((caller) => {
           console.log('EmbeddedBackend: Calling subscription callback "%s:%d%s".', caller.restHostname, caller.restPort, caller.restPath);
-          that._post(caller.restHostname, caller.restPort, caller.restPath, JSON.stringify(msg));
+          that._post(caller.restHostname, caller.restPort, caller.restPath, JSON.stringify(msg), function errorCallback(statusCode) {
+            let key = caller.restHostname + ":" + caller.restPort + caller.restPath;
+            console.log('EmbeddedBackend: Dead subscriber found "%s", removing!', key);
+            subscriptions.delete(key);
+          });
         });
       }
       return res.send("done");
@@ -139,7 +143,7 @@ class EmbeddedBackend {
     this._post('localhost', this.port, '/subscribeTopic/paperboy-message', JSON.stringify(caller));
   }
 
-  _post(hostname, port, path, data) {
+  _post(hostname, port, path, data, errorCallback) {
     var options = {
       hostname: hostname,
       port: port,
@@ -154,6 +158,9 @@ class EmbeddedBackend {
     var req = http.request(options, function(res) {
       if (res.statusCode != 200) {
         console.error('EmbeddedBackend: unsuccessful service call to "%s:%d%s", response: "%d"', hostname, port, path, res.statusCode);
+        if (errorCallback != undefined) {
+          errorCallback(res.statusCode);
+        }
       }
     });
     req.on('error', error => {
