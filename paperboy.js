@@ -1,5 +1,5 @@
+const { v4: uuidv4 } = require('uuid');
 var WebSocket = require('ws');
-var uuid = require('node-uuid');
 
 const WEB_SOCKET_PORT = process.env.PAPERBOY_WEB_SOCKET_PORT || 3000;
 const ALLOWED_ORIGINS = process.env.PAPERBOY_ALLOWED_ORIGINS || 'http://localhost:8080';
@@ -76,7 +76,7 @@ messagingBackend.init(function() {
   server.on('connection', function connection(ws, req) {
     ws.isAlive = true;
     ws.authorized = false;
-    ws.id = uuid.v4();
+    ws.id = uuidv4();
     // 'heartbeat' (ping->pong to detect broken connections)
     ws.on('pong', heartbeat);
 
