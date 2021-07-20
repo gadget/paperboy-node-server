@@ -120,7 +120,7 @@ messagingBackend.init(function() {
   const cleanUpDeadConnectionsInterval = setInterval(function ping() {
     for (let ws of sockets.values()) {
       if (ws.isAlive === false) {
-        console.debug('Cleaning up dead connection "%s".', ws.id);
+        console.log('Cleaning up dead connection "%s".', ws.id);
         disconnect(ws);
       } else {
         ws.isAlive = false;
@@ -166,7 +166,7 @@ messagingBackend.init(function() {
   // subscribing for close messages (sent by the backend application logic to 'force' close a channel subscription)
   messagingBackend.subscribeClose(function(messageString) {
     const message = JSON.parse(messageString);
-    console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
+    console.log('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
     clearSubscription(message.userId, message.channel);
   });
 
@@ -175,10 +175,10 @@ messagingBackend.init(function() {
     try {
       const message = JSON.parse(messageString);
       if (message.userId != undefined) {
-        console.debug('Received user message, forwarding to WebSocket.');
+        //console.log('Received user message, forwarding to WebSocket.');
         sendToUser(message.userId, messageString);
       } else if (message.channel != undefined) {
-        console.debug('Received channel message, forwarding to WebSockets.');
+        //console.log('Received channel message, forwarding to WebSockets.');
         sendToChannel(message.channel, messageString);
       }
     } catch (e) {

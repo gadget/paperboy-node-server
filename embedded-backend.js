@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 
+// embedded REST endpoints are served with express
 let app = express();
 
 class EmbeddedBackend {
@@ -21,7 +22,7 @@ class EmbeddedBackend {
 
     app.use(express.json());
 
-    // instanceId to uniquely identify embedded backend services
+    // instanceId is used by the connector to uniquely identify embedded nodes
     app.get('/instance', function (req, res) {
       res.send(that.instanceId);
     });
@@ -42,13 +43,12 @@ class EmbeddedBackend {
       // save the callback to the subscription map
       subscriptionsMap.set(key, caller);
       return res.send("done");
-      // TODO: remove dead callers
     });
 
     // sending a message to a topic
     app.post('/pushMessage/:topic', function (req, res) {
       let msg = req.body;
-      console.log('EmbeddedBackend: Pushing message to "%s".', req.params.topic);
+      //console.log('EmbeddedBackend: Pushing message to "%s".', req.params.topic);
       if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
         throw 'Invalid token for embedded backend!';
       }
@@ -57,7 +57,7 @@ class EmbeddedBackend {
         let subscriptions = that.topicSubscriptions.get(req.params.topic);
         // we iterate over all the subscription callers and execute the callback over REST
         subscriptions.forEach((caller) => {
-          console.log('EmbeddedBackend: Calling subscription callback "%s:%d%s".', caller.restHostname, caller.restPort, caller.restPath);
+          //console.log('EmbeddedBackend: Calling subscription callback "%s:%d%s".', caller.restHostname, caller.restPort, caller.restPath);
           that._post(caller.restHostname, caller.restPort, caller.restPath, JSON.stringify(msg), function errorCallback(statusCode) {
             let key = caller.restHostname + ":" + caller.restPort + caller.restPath;
             console.log('EmbeddedBackend: Dead subscriber found "%s", removing!', key);
@@ -71,13 +71,13 @@ class EmbeddedBackend {
     // for calling a message callback on this instance
     app.post('/messageCallback/:topic', function (req, res) {
       let msg = req.body;
-      console.log('EmbeddedBackend: Message callback received for "%s".', req.params.topic);
+      //console.log('EmbeddedBackend: Message callback received for "%s".', req.params.topic);
       if (that.embeddedBackendToken != (req.get('PaperboyEmbeddedBackendToken'))) {
         throw 'Invalid token for embedded backend!';
       }
       // if this instance has messageCallback registered for the given topic
       if (that.messageCallbacks.has(req.params.topic)) {
-        console.log('EmbeddedBackend: Executing callback handler.');
+        //console.log('EmbeddedBackend: Executing callback handler.');
         that.messageCallbacks.get(req.params.topic)(JSON.stringify(msg));
       }
       return res.send("done");
@@ -87,7 +87,7 @@ class EmbeddedBackend {
       console.log("EmbeddedBackend: server started.");
     });
 
-    // publishing this service with bonjour
+    // publishing this service with bonjour over mDNS
     bonjour.publish({ name: 'Paperboy embedded backend #' + that.port, type: 'paperboy-http', port: that.port });
     // discovering all the embedded backend instances with bonjour
     bonjour.find({ type: 'paperboy-http' }, function (service) {
@@ -96,7 +96,7 @@ class EmbeddedBackend {
       serviceObj.port = service.port;
       console.log('EmbeddedBackend: Discovered embedded backend at "%s:%d".', serviceObj.host, serviceObj.port);
       that.nodes.push(serviceObj);
-      // TODO: remove dead instances
+      // TODO: implement a REST endpoint for health checking, perform check every 5s, remove dead nodes
     })
     callback();
   }
