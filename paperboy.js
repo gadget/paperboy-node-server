@@ -93,10 +93,12 @@ messagingBackend.init(function() {
       // receives token from WebSocket client and sends it as a subscription request for the backend
       ws.on('message', function incoming(message) {
         if (message.length < 100 && message.startsWith('unsubscribe:')) {
+          // handling unsubscribe request from client
           console.log('Unsubscribe request from WebSocket client.');
           const ch = message.substring(12);
           clearSubscription(ws.userId, ch);
         } else {
+          // handling subscription token from client
           console.log('Token arrived from WebSocket client.');
           const token = message;
           sockets.set(ws.id, ws);
@@ -131,7 +133,7 @@ messagingBackend.init(function() {
     clearInterval(cleanUpDeadConnectionsInterval);
   });
 
-  // a kind of ACK from the backend, confirming an authorization/subscription to a channel
+  // subscribing for successful authorization messages, confirming an authorization/subscription to a channel
   messagingBackend.subscribeAuthorized(function(messageString) {
     const message = JSON.parse(messageString);
     if (sockets.has(message.wsId)) {
@@ -154,20 +156,21 @@ messagingBackend.init(function() {
           channelSockets.set(message.channel, new Set());
         }
         channelSockets.get(message.channel).add(ws);
+        // notifying the client about the successful subscription over WebSocket
         ws.send('subscribed:' + message.channel);
       }
       console.log('Successful authorization for "%s".', message.wsId);
     }
   });
 
-  // close messages are sent by the backend application logic to 'force' close channel subscription
+  // subscribing for close messages (sent by the backend application logic to 'force' close a channel subscription)
   messagingBackend.subscribeClose(function(messageString) {
     const message = JSON.parse(messageString);
     console.debug('Received message to close subscription for user "%s" on channel "%s".', message.userId, message.channel);
     clearSubscription(message.userId, message.channel);
   });
 
-  // application messages
+  // subscribing for application messages
   messagingBackend.subscribeMessage(function(messageString) {
     try {
       const message = JSON.parse(messageString);
